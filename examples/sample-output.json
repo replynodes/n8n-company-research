@@ -13,7 +13,7 @@
     "integrations": [],
     "logo_url": "https://img.replynodes.com/stripe.com",
     "logo_resolved": true,
-    "brand_colors": [],
+    "brand_colors": ["#635bff", "#ee30fb", "#ffd601", "#533afd", "#9966ff", "#ff6118"],
     "pricing_url": "https://stripe.com/pricing",
     "docs_url": "https://docs.stripe.com/development",
     "changelog_url": null,
