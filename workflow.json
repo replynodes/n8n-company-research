@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "b05a159e-c45a-44a5-97ab-18e41ff641bc",
+      "id": "298b530f-38cc-4034-8b32-b46297c81259",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -16,7 +16,7 @@
       "parameters": {
         "jsCode": "// Settings. For a first run you do not need to change anything here.\n//\n// The free ReplyNodes endpoints advertise a limit of about 20 requests per minute per IP.\n// Each domain makes up to 3 requests to those endpoints (homepage, pricing page, brand data)\n// plus one logo check, so a pause of 12 seconds between domains stays under the limit.\nreturn [\n  {\n    json: {\n      mdBase: 'https://md.replynodes.com',\n      brandBase: 'https://brand.replynodes.com',\n      logoBase: 'https://img.replynodes.com',\n      waitSeconds: 12,\n      maxHomepageChars: 12000,\n      maxPricingChars: 6000,\n      maxBrandChars: 3000,\n      // Sent as the X-Source header so ReplyNodes can count usage of this template.\n      // Delete the header in the HTTP Request nodes if you prefer not to send it.\n      sourceHeader: 'n8n-company-research',\n    },\n  },\n];\n"
       },
-      "id": "96d24f56-31a8-4545-9336-380f6d2488f3",
+      "id": "47e64f3a-e1f7-42fe-bfbe-97d02e1aa362",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -29,7 +29,7 @@
       "parameters": {
         "jsCode": "// Company domains to research: one per line (commas also work).\n// Schemes, \"www.\" and paths are removed automatically.\n// Entries that are not valid domains are kept in the output with status \"failed\".\nconst input = `\nstripe.com\nlinear.app\nreplynodes.com\n`;\n\nfunction normalize(raw) {\n  let s = String(raw || '').trim().toLowerCase();\n  if (!s) return null;\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, '').replace(/^www\\./, '');\n  s = s.split(/[\\/?#]/)[0].replace(/:\\d+$/, '');\n  const ok = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s);\n  return ok ? s : null;\n}\n\nconst seen = new Set();\nconst items = [];\nfor (const raw of input.split(/[\\n,;]+/)) {\n  const trimmed = raw.trim();\n  if (!trimmed) continue;\n  const domain = normalize(trimmed);\n  if (domain) {\n    if (seen.has(domain)) continue;\n    seen.add(domain);\n    items.push({ json: { domain, valid: true } });\n  } else {\n    items.push({ json: { domain: trimmed, valid: false } });\n  }\n}\nreturn items;\n"
       },
-      "id": "a5135304-65b5-4828-a5bb-1df008c20fe0",
+      "id": "b67b02f5-695a-4502-9a8b-ddc1514479cf",
       "name": "Domains",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -43,7 +43,7 @@
         "batchSize": 1,
         "options": {}
       },
-      "id": "01ab941b-f8cd-4e6f-8f8a-9644344df2ee",
+      "id": "dea4c0af-6fd8-4af8-99ff-c04bf34d8f13",
       "name": "Loop over domains",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
@@ -54,7 +54,7 @@
     },
     {
       "parameters": {},
-      "id": "e67c7a38-65ed-461e-9e8d-12a1e9e8ec31",
+      "id": "88962582-5030-4393-941b-645e82a85fca",
       "name": "Results",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -74,7 +74,7 @@
           },
           "conditions": [
             {
-              "id": "af3dba0b-130b-4e46-990d-6c49a11f54e6",
+              "id": "03e4cac7-31ec-4b59-9795-2da318bd6c39",
               "leftValue": "={{ $json.valid !== false }}",
               "rightValue": "",
               "operator": {
@@ -88,7 +88,7 @@
         },
         "options": {}
       },
-      "id": "68552483-018e-4a43-a549-28c074007bff",
+      "id": "d6ea22ea-2821-437b-ab90-9ae95cb29189",
       "name": "Valid domain?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -125,7 +125,7 @@
           }
         }
       },
-      "id": "2f54ed1d-fc9a-4d76-ae91-83582231efcd",
+      "id": "c540d480-c7cb-45bf-b350-1da0bf7d253a",
       "name": "Fetch homepage",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -140,7 +140,7 @@
         "jsCode": "// Reads the homepage Markdown, decides whether it is usable and finds key links.\nconst domain = $('Loop over domains').item.json.domain;\nconst settings = $('Settings').first().json;\nconst res = $json || {};\nconst statusCode = Number(res.statusCode) || 0;\n// n8n 2.x returns the response text in \"data\", older versions in \"body\".\nconst body = typeof res.body === 'string' ? res.body : typeof res.data === 'string' ? res.data : '';\nconst ok = statusCode >= 200 && statusCode < 300 && body.trim().length >= 200;\n\nconst isSiteHost = (host) => host === domain || host === 'www.' + domain || host.endsWith('.' + domain);\n\n// Collect links from Markdown: [text](url)\nconst candidates = [];\nconst linkRe = /\\[([^\\]]*)\\]\\(\\s*<?([^)\\s>]+)>?(?:\\s+\"[^\"]*\")?\\s*\\)/g;\nlet m;\nwhile ((m = linkRe.exec(body)) !== null) {\n  const text = m[1].replace(/[*_`]/g, '').trim();\n  const href = m[2].trim();\n  if (!href || /^(mailto:|tel:|javascript:|#)/i.test(href)) continue;\n  // Small URL resolver (no dependency on the URL global, which Code nodes may not expose).\n  let abs = href;\n  if (/^\\/\\//.test(href)) abs = 'https:' + href;\n  else if (href.startsWith('/')) abs = 'https://' + domain + href;\n  else if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) abs = 'https://' + domain + '/' + href.replace(/^\\.\\//, '');\n  const mm = /^(https?):\\/\\/([^\\/?#:]+)(?::\\d+)?([^?#]*)/i.exec(abs);\n  if (!mm) continue;\n  const host = mm[2].toLowerCase();\n  const path = mm[3] || '/';\n  candidates.push({ text, href: mm[1].toLowerCase() + '://' + host + path, host, path: path.toLowerCase() });\n}\n\nfunction pick(pathRe, textRe, hostRe) {\n  const site = candidates.filter((c) => isSiteHost(c.host));\n  const byPath = site.find((c) => pathRe.test(c.path) || (hostRe && hostRe.test(c.host)));\n  if (byPath) return byPath;\n  return site.find((c) => textRe.test(c.text)) || null;\n}\n\nconst links = {};\nconst rules = {\n  pricing_url: [/\\/(pricing|plans|prices?)(\\/|$)/, /^(pricing|plans|plans (&|and) pricing)$/i, null],\n  docs_url: [/\\/(docs?|documentation|developers?|api)(\\/|$)/, /^(docs|documentation|developers?|api( reference| docs)?)$/i, /^(docs|developers?)\\./],\n  changelog_url: [/\\/(changelog|release-notes|releases|whats-new)(\\/|$)/, /^(changelog|release notes|what'?s new)$/i, null],\n  blog_url: [/\\/(blog|news|insights)(\\/|$)/, /^(blog|news|insights)$/i, /^blog\\./],\n  careers_url: [/\\/(careers?|jobs|join-us|work-with-us)(\\/|$)/, /^(careers?|jobs|we'?re hiring|join us)$/i, /^(careers|jobs)\\./],\n  contact_url: [/\\/(contact|contact-us|contact-sales)(\\/|$)/, /^(contact( us| sales)?)$/i, null],\n};\nfor (const [key, [pathRe, textRe, hostRe]] of Object.entries(rules)) {\n  const hit = pick(pathRe, textRe, hostRe);\n  links[key] = hit ? hit.href : null;\n}\n\n// Social profiles can live on other hosts.\nconst social = {};\nconst socialRules = [\n  ['linkedin', /(^|\\.)linkedin\\.com$/, /^\\/(company|school)\\/[^\\/]+/],\n  ['x', /^(x\\.com|twitter\\.com|www\\.twitter\\.com)$/, /^\\/(?!intent|share|home|search|i\\/)[a-z0-9_]{1,30}\\/?$/],\n  ['github', /^github\\.com$/, /^\\/[a-z0-9-]+\\/?$/],\n  ['youtube', /(^|\\.)youtube\\.com$/, /^\\/(@|channel\\/|c\\/|user\\/)/],\n  ['facebook', /(^|\\.)facebook\\.com$/, /^\\/(?!sharer|share)[a-z0-9.\\-]+\\/?$/],\n  ['instagram', /(^|\\.)instagram\\.com$/, /^\\/[a-z0-9_.]+\\/?$/],\n];\nfor (const [name, hostRe, pathRe] of socialRules) {\n  const hit = candidates.find((c) => hostRe.test(c.host) && pathRe.test(c.path));\n  if (hit) social[name] = hit.href;\n}\n\n// Where to fetch the pricing page from (host + path for the Markdown endpoint).\nlet pricingTarget = domain + '/pricing';\nif (links.pricing_url) {\n  const pm = /^https?:\\/\\/([^\\/]+)(\\/.*)?$/i.exec(links.pricing_url);\n  if (pm) pricingTarget = pm[1] + (pm[2] || '').replace(/\\/+$/, '');\n}\n\nreturn {\n  json: {\n    domain,\n    homepage_status: statusCode,\n    homepage_ok: ok,\n    homepage_url: 'https://' + domain + '/',\n    homepage_markdown: ok ? body.slice(0, Number(settings.maxHomepageChars) || 12000) : '',\n    links,\n    social_links: social,\n    pricing_target: pricingTarget,\n  },\n};\n",
         "mode": "runOnceForEachItem"
       },
-      "id": "a1df2c41-f877-47ed-8b80-b6a219d86ec7",
+      "id": "94cecec7-4481-4da6-9b2c-fc8c923c3951",
       "name": "Parse homepage",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -160,7 +160,7 @@
           },
           "conditions": [
             {
-              "id": "dc06e3a4-785e-4d54-9c60-d954be0faa23",
+              "id": "8830b09b-d25b-48e4-b7ad-8498c8475887",
               "leftValue": "={{ $json.homepage_ok }}",
               "rightValue": "",
               "operator": {
@@ -174,7 +174,7 @@
         },
         "options": {}
       },
-      "id": "5d9769d7-bf28-4349-b79c-a51a52339af2",
+      "id": "775a87da-5e1a-42ff-8242-26d34ae17825",
       "name": "Homepage OK?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -211,7 +211,7 @@
           }
         }
       },
-      "id": "f8118fe8-eed0-48a7-abb8-46b86f96125f",
+      "id": "fde437fe-a518-4dc5-9503-62473f2c7ecd",
       "name": "Fetch pricing",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -249,7 +249,7 @@
           }
         }
       },
-      "id": "a1a1fb4b-bcc3-4e7c-9000-1391b680fb08",
+      "id": "e50ba63e-175b-43ad-b7bb-f9f98beed747",
       "name": "Fetch brand",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -287,7 +287,7 @@
           }
         }
       },
-      "id": "c6ab5ec2-afc7-4275-b3c3-9b1557c4879f",
+      "id": "e550b17b-98c4-47f2-95ab-21fa9ca79352",
       "name": "Check logo",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -302,7 +302,7 @@
         "jsCode": "// Gathers everything fetched for this domain, works out the status and builds the LLM input.\nconst get = (name) => {\n  try {\n    return $(name).item.json;\n  } catch (e) {\n    return null; // that node did not run for this domain\n  }\n};\nconst settings = $('Settings').first().json;\nconst loop = get('Loop over domains') || {};\nconst domain = loop.domain || null;\nconst page = get('Parse homepage');\nconst pricingRes = get('Fetch pricing');\nconst brandRes = get('Fetch brand');\nconst logoRes = get('Check logo');\n\nconst is2xx = (r) => !!r && Number(r.statusCode) >= 200 && Number(r.statusCode) < 300;\n// n8n 2.x returns the response text in \"data\", older versions in \"body\".\nconst bodyOf = (r) => (r && typeof r.body === 'string' ? r.body : r && typeof r.data === 'string' ? r.data : '');\n\nlet status = 'ok';\nlet error = null;\nif (loop.valid === false) {\n  status = 'failed';\n  error = 'invalid_domain';\n} else if (!page) {\n  status = 'failed';\n  error = 'request_failed';\n} else if (!page.homepage_ok) {\n  const c = page.homepage_status;\n  if (c === 429) status = 'rate_limited';\n  else if (c === 401 || c === 403 || c === 451) status = 'blocked';\n  else if (c >= 200 && c < 300) { status = 'needs_review'; error = 'page_too_short'; }\n  else { status = 'failed'; error = c ? 'http_' + c : 'request_failed'; }\n}\n\n// Pricing page (optional)\nlet pricingMd = null;\nlet pricingPageUrl = null;\nif (is2xx(pricingRes) && bodyOf(pricingRes).trim().length >= 200) {\n  pricingMd = bodyOf(pricingRes).slice(0, Number(settings.maxPricingChars) || 6000);\n  pricingPageUrl = 'https://' + (page ? page.pricing_target : domain + '/pricing');\n}\n\n// Brand data (optional). The exact JSON shape is read defensively.\nlet brand = null;\nif (is2xx(brandRes) && bodyOf(brandRes)) {\n  try { brand = JSON.parse(bodyOf(brandRes)); } catch (e) { brand = null; }\n}\nconst findKey = (obj, names, depth = 0) => {\n  if (!obj || typeof obj !== 'object' || depth > 3) return undefined;\n  for (const k of Object.keys(obj)) {\n    if (names.includes(k.toLowerCase())) return obj[k];\n  }\n  for (const k of Object.keys(obj)) {\n    const v = typeof obj[k] === 'object' ? findKey(obj[k], names, depth + 1) : undefined;\n    if (v !== undefined) return v;\n  }\n  return undefined;\n};\nlet brandColors = [];\nconst colorSource = brand ? findKey(brand, ['colors', 'palette', 'color']) : undefined;\nif (colorSource !== undefined) {\n  const hexes = JSON.stringify(colorSource).match(/#[0-9a-fA-F]{6}\\b|#[0-9a-fA-F]{3}\\b/g) || [];\n  brandColors = [...new Set(hexes.map((h) => h.toLowerCase()))].slice(0, 6);\n}\nconst brandName = brand ? findKey(brand, ['name', 'companyname', 'brandname', 'title']) : undefined;\n\n// Logo check: the logo endpoint always returns an image, the header tells if it is a real mark.\nlet logoResolved = null;\nif (logoRes && logoRes.headers) {\n  const fb = String(logoRes.headers['x-replynodes-logo-fallback'] || '').toLowerCase();\n  if (fb === 'logo') logoResolved = true;\n  else if (fb === 'placeholder') logoResolved = false;\n}\n\nconst brandSummary = brand ? JSON.stringify(brand).slice(0, Number(settings.maxBrandChars) || 3000) : '';\n\nconst hasContent = status === 'ok';\nconst llmInput = hasContent\n  ? [\n      'Domain: ' + domain,\n      'Homepage URL: ' + page.homepage_url,\n      '',\n      '=== HOMEPAGE (Markdown) ===',\n      page.homepage_markdown,\n      '',\n      pricingMd ? '=== PRICING PAGE (' + pricingPageUrl + ') ===\\n' + pricingMd : '(No pricing page content was available.)',\n      brandSummary ? '\\n=== BRAND DATA (JSON, trimmed) ===\\n' + brandSummary : '',\n    ].join('\\n')\n  : '';\n\nconst evidence = [];\nif (page && page.homepage_ok) evidence.push(page.homepage_url);\nif (pricingPageUrl) evidence.push(pricingPageUrl);\n\nreturn {\n  json: {\n    domain,\n    status,\n    error,\n    has_content: hasContent,\n    llm_input: llmInput,\n    links: page ? page.links : {},\n    social_links: page ? page.social_links : {},\n    homepage_url: page ? page.homepage_url : null,\n    evidence_urls: evidence,\n    pricing_page_url: pricingPageUrl,\n    brand_colors: brandColors,\n    brand_name: typeof brandName === 'string' ? brandName : null,\n    logo_url: domain && loop.valid !== false ? settings.logoBase + '/' + domain : null,\n    logo_resolved: logoResolved,\n  },\n};\n",
         "mode": "runOnceForEachItem"
       },
-      "id": "9141e3e0-7f4d-481c-8336-15fa266cdfe0",
+      "id": "f7495bb7-7946-457e-b06f-b78a0aa2e29d",
       "name": "Collect page data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -322,7 +322,7 @@
           },
           "conditions": [
             {
-              "id": "fee33cd0-c86d-4a05-ab68-25f3132f6ce9",
+              "id": "e96129ef-d52b-45bc-9f88-2bddac27d65b",
               "leftValue": "={{ $json.has_content }}",
               "rightValue": "",
               "operator": {
@@ -336,7 +336,7 @@
         },
         "options": {}
       },
-      "id": "ba5b9293-ee64-42ca-9896-7b47acfb2755",
+      "id": "d1d6c3b5-7abc-4205-a61f-55f6f0c08d64",
       "name": "Content to summarize?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -360,7 +360,7 @@
           ]
         }
       },
-      "id": "89b5490c-0e59-4563-a570-00613cb45dc8",
+      "id": "0cd9675a-a66d-418b-8527-5dc13c2b7f7a",
       "name": "Summarize profile",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
@@ -382,7 +382,7 @@
           "temperature": 0
         }
       },
-      "id": "12d251f0-790a-417a-ab2a-243d399029f7",
+      "id": "b1c60883-2f50-44c5-91a8-bb51c01c62d0",
       "name": "LLM (replace with your model)",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
@@ -396,7 +396,7 @@
         "schemaType": "manual",
         "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"company_name\": {\n      \"type\": \"string\"\n    },\n    \"description\": {\n      \"type\": \"string\"\n    },\n    \"industry\": {\n      \"type\": \"string\",\n      \"description\": \"One of: Software / SaaS; Developer tools; AI / Machine learning; Infrastructure / Cloud; Cybersecurity; Fintech / Payments; E-commerce / Retail; Marketing / Advertising; Healthcare / Biotech; Education; Media / Entertainment; Consulting / Services; Manufacturing / Hardware; Travel / Hospitality; Real estate; Non-profit; Other\"\n    },\n    \"products\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"target_customers\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"has_free_trial\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"yes\",\n        \"no\",\n        \"unknown\"\n      ]\n    },\n    \"pricing_summary\": {\n      \"type\": \"string\"\n    },\n    \"integrations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"company_name\",\n    \"description\",\n    \"industry\",\n    \"products\",\n    \"target_customers\",\n    \"has_free_trial\",\n    \"pricing_summary\",\n    \"integrations\"\n  ]\n}"
       },
-      "id": "acc5290e-0995-4c45-b828-770a7e4b8c71",
+      "id": "5f3f2659-7614-47af-88e3-c6c9fd0b551f",
       "name": "Structured Output Parser",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
@@ -407,10 +407,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Builds the final output row from the collected data and the LLM answer (if any).\nconst INDUSTRIES = [\"Software / SaaS\",\"Developer tools\",\"AI / Machine learning\",\"Infrastructure / Cloud\",\"Cybersecurity\",\"Fintech / Payments\",\"E-commerce / Retail\",\"Marketing / Advertising\",\"Healthcare / Biotech\",\"Education\",\"Media / Entertainment\",\"Consulting / Services\",\"Manufacturing / Hardware\",\"Travel / Hospitality\",\"Real estate\",\"Non-profit\",\"Other\"];\n\nconst s = $('Collect page data').item.json;\nconst raw = $json || {};\n\nlet llm = null;\nif (raw.output && typeof raw.output === 'object') llm = raw.output;\nelse if (raw.company_name) llm = raw;\nelse if (typeof raw.text === 'string') {\n  try { llm = JSON.parse(raw.text); } catch (e) { llm = null; }\n}\n\nconst toList = (v, max) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, max) : []);\nconst toText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);\n\nlet status = s.status;\nlet error = s.error;\nif (s.has_content && !llm) {\n  status = 'failed';\n  error = 'llm_failed';\n}\n\nlet companyName = null;\nlet description = null;\nlet industry = null;\nlet products = [];\nlet targets = [];\nlet freeTrial = null;\nlet pricingSummary = null;\nlet integrations = [];\n\nif (llm) {\n  companyName = toText(llm.company_name) || toText(s.brand_name);\n  description = toText(llm.description);\n  industry = toText(llm.industry);\n  if (industry && !INDUSTRIES.includes(industry)) industry = 'Other';\n  products = toList(llm.products, 8);\n  targets = toList(llm.target_customers, 6);\n  const trial = String(llm.has_free_trial || '').toLowerCase();\n  freeTrial = trial === 'yes' ? true : trial === 'no' ? false : null;\n  pricingSummary = s.pricing_page_url ? toText(llm.pricing_summary) : null;\n  integrations = toList(llm.integrations, 10);\n  if (status === 'ok' && (!companyName || !description || !industry)) {\n    status = 'needs_review';\n    error = 'missing_main_fields';\n  }\n}\n\nreturn {\n  json: {\n    domain: s.domain,\n    status,\n    error,\n    company_name: companyName,\n    description,\n    industry,\n    products,\n    target_customers: targets,\n    has_free_trial: freeTrial,\n    pricing_summary: pricingSummary,\n    integrations,\n    logo_url: s.logo_url,\n    logo_resolved: s.logo_resolved,\n    brand_colors: s.brand_colors,\n    pricing_url: s.links.pricing_url || null,\n    docs_url: s.links.docs_url || null,\n    changelog_url: s.links.changelog_url || null,\n    blog_url: s.links.blog_url || null,\n    careers_url: s.links.careers_url || null,\n    contact_url: s.links.contact_url || null,\n    social_links: s.social_links,\n    source_url: s.homepage_url,\n    evidence_urls: s.evidence_urls,\n    checked_at: new Date().toISOString(),\n  },\n};\n",
+        "jsCode": "// Builds the final output row from the collected data and the LLM answer (if any).\nconst INDUSTRIES = [\"Software / SaaS\",\"Developer tools\",\"AI / Machine learning\",\"Infrastructure / Cloud\",\"Cybersecurity\",\"Fintech / Payments\",\"E-commerce / Retail\",\"Marketing / Advertising\",\"Healthcare / Biotech\",\"Education\",\"Media / Entertainment\",\"Consulting / Services\",\"Manufacturing / Hardware\",\"Travel / Hospitality\",\"Real estate\",\"Non-profit\",\"Other\"];\n\nconst s = $('Collect page data').item.json;\nconst raw = $json || {};\n\nlet llm = null;\nif (raw.output && typeof raw.output === 'object') llm = raw.output;\nelse if (raw.company_name) llm = raw;\nelse if (typeof raw.text === 'string') {\n  try { llm = JSON.parse(raw.text); } catch (e) { llm = null; }\n}\n\nconst toList = (v, max) => (Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, max) : []);\nconst toText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);\n\nlet status = s.status;\nlet error = s.error;\nif (s.has_content && !llm) {\n  status = 'failed';\n  error = 'llm_failed';\n}\n\nlet companyName = null;\nlet description = null;\nlet industry = null;\nlet products = [];\nlet targets = [];\nlet freeTrial = null;\nlet pricingSummary = null;\nlet integrations = [];\n\nif (llm) {\n  companyName = toText(llm.company_name) || toText(s.brand_name);\n  description = toText(llm.description);\n  industry = toText(llm.industry);\n  if (industry && !INDUSTRIES.includes(industry)) industry = 'Other';\n  products = toList(llm.products, 8);\n  targets = toList(llm.target_customers, 6);\n  const trial = String(llm.has_free_trial || '').toLowerCase();\n  freeTrial = trial === 'yes' ? true : trial === 'no' ? false : null;\n  pricingSummary = s.pricing_page_url ? toText(llm.pricing_summary) : null;\n  integrations = toList(llm.integrations, 10);\n  if (status === 'ok' && (!companyName || !description || !industry)) {\n    status = 'needs_review';\n    error = 'missing_main_fields';\n  }\n}\n\nreturn {\n  json: {\n    domain: s.domain,\n    status,\n    error,\n    company_name: companyName,\n    description,\n    industry,\n    products,\n    target_customers: targets,\n    has_free_trial: freeTrial,\n    pricing_summary: pricingSummary,\n    integrations,\n    logo_url: s.logo_url,\n    logo_resolved: s.logo_resolved,\n    brand_colors: s.brand_colors,\n    pricing_url: s.pricing_page_url || s.links.pricing_url || null,\n    docs_url: s.links.docs_url || null,\n    changelog_url: s.links.changelog_url || null,\n    blog_url: s.links.blog_url || null,\n    careers_url: s.links.careers_url || null,\n    contact_url: s.links.contact_url || null,\n    social_links: s.social_links,\n    source_url: s.homepage_url,\n    evidence_urls: s.evidence_urls,\n    checked_at: new Date().toISOString(),\n  },\n};\n",
         "mode": "runOnceForEachItem"
       },
-      "id": "4acc795a-38f0-463b-865c-ef9c5c4e0c02",
+      "id": "3d28f948-3120-4397-98c9-bd4ad24cbdf7",
       "name": "Build row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -424,7 +424,7 @@
         "amount": "={{ $json.error === 'invalid_domain' ? 0 : $('Settings').first().json.waitSeconds }}",
         "unit": "seconds"
       },
-      "id": "b2ca920e-e2b1-4ada-841a-372fd42923e1",
+      "id": "ac8a8871-4400-4804-8e0d-55b779016d18",
       "name": "Respect rate limit",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -432,7 +432,7 @@
         3500,
         300
       ],
-      "webhookId": "4b215082-34e2-4eb2-94ef-e1dec4578b8e"
+      "webhookId": "bae4f63d-e41b-4de9-89ed-31304b6c121f"
     },
     {
       "parameters": {
@@ -441,7 +441,7 @@
         "width": 620,
         "color": 7
       },
-      "id": "603509d4-a4a6-49ee-9eba-770601bcc083",
+      "id": "44e0f1f2-3e3b-4fb4-af2f-ec04cd96aeb2",
       "name": "Setup",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -457,7 +457,7 @@
         "width": 560,
         "color": 4
       },
-      "id": "6b7f13b1-b2a2-4ce2-820b-014eb82df5ba",
+      "id": "f9e406fe-d1bd-4ca3-b39f-8c1954a56fb9",
       "name": "Limits and status values",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -473,7 +473,7 @@
         "width": 420,
         "color": 5
       },
-      "id": "ba6b82a3-70d7-4899-a9aa-e5676c0ac352",
+      "id": "a5834456-baa9-4450-a059-fdd8437d6361",
       "name": "Attribution",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

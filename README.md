@@ -6,7 +6,7 @@ An import-and-run **n8n workflow template** for **company research from a websit
 - **Import, run, done:** ships with three sample domains.
 - **Honest by design:** every row carries a `status` and evidence URLs. Missing data stays empty instead of being guessed.
 
-> Tested against a local mock of the endpoints on n8n 2.35.7. Real-world feedback is welcome: please [open an issue](../../issues) with the domain and the `status` you got.
+> Tested on n8n Cloud against the live endpoints (stripe.com, linear.app, replynodes.com, plus an invalid and a nonexistent domain) and on n8n 2.35.7 with a local mock. Feedback welcome: [open an issue](../../issues) with the domain and the `status` you got.
 
 ## Quick start
 
@@ -20,7 +20,7 @@ Tune pacing and size limits in the **Settings** node (`waitSeconds`, `maxHomepag
 
 ## Output fields
 
-One row per domain. Full JSON Schema: [docs/output.schema.json](docs/output.schema.json). Example shape: [examples/sample-output.illustrative.json](examples/sample-output.illustrative.json) (fictional, not real output).
+One row per domain. Full JSON Schema: [docs/output.schema.json](docs/output.schema.json). Example shape: [examples/sample-output.json](examples/sample-output.json) (real rows from a run on 2026-11-04, trimmed).
 
 | Group | Fields |
 |---|---|
