@@ -11,7 +11,7 @@
 ## Files
 - [workflow.json](workflow.json): the importable n8n workflow
 - [examples/sample-input.txt](examples/sample-input.txt): sample domains
-- [examples/sample-output.json](examples/sample-output.illustrative.json): real rows from a run (trimmed)
+- [examples/sample-output.json](examples/sample-output.json): real rows from a run (trimmed)
 
 ## Related
 - [Free Markdown, brand and logo API](https://github.com/replynodes/free-markdown-brand-logo-api)
