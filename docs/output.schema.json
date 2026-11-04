@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Company research row",
+  "description": "One output row of the n8n-company-research workflow.",
+  "type": "object",
+  "required": [
+    "domain",
+    "status"
+  ],
+  "properties": {
+    "domain": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "needs_review",
+        "blocked",
+        "rate_limited",
+        "failed"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Reason code, e.g. invalid_domain, page_too_short, http_404, llm_failed"
+    },
+    "company_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "industry": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "Software / SaaS",
+        "Developer tools",
+        "AI / Machine learning",
+        "Infrastructure / Cloud",
+        "Cybersecurity",
+        "Fintech / Payments",
+        "E-commerce / Retail",
+        "Marketing / Advertising",
+        "Healthcare / Biotech",
+        "Education",
+        "Media / Entertainment",
+        "Consulting / Services",
+        "Manufacturing / Hardware",
+        "Travel / Hospitality",
+        "Real estate",
+        "Non-profit",
+        "Other",
+        null
+      ]
+    },
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "target_customers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "has_free_trial": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "pricing_summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "integrations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "logo_url": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri"
+    },
+    "logo_resolved": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "true = real logo, false = generated placeholder"
+    },
+    "brand_colors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pricing_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "docs_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "changelog_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "blog_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "careers_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contact_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "social_links": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checked_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

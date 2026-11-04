@@ -1,0 +1,17 @@
+# n8n Company Research
+
+> n8n workflow template that researches companies from a website domain. Input: list of domains. Output: one structured profile per domain (name, description, industry, products, target customers, logo, brand colors, key links, pricing signals, evidence URLs, status). Needs only an LLM credential; no data-provider API key. Not a data-enrichment tool: no headcount, funding or emails.
+
+## Docs
+- [README](README.md): quick start, fields, status values, FAQ
+- [How it works](docs/how-it-works.md): node-by-node walkthrough and customization
+- [FAQ](docs/faq.md): common questions and limits
+- [Output JSON Schema](docs/output.schema.json): machine-readable row format
+
+## Files
+- [workflow.json](workflow.json): the importable n8n workflow
+- [examples/sample-input.txt](examples/sample-input.txt): sample domains
+- [examples/sample-output.illustrative.json](examples/sample-output.illustrative.json): illustrative row (fictional)
+
+## Related
+- [Free Markdown, brand and logo API](https://github.com/replynodes/free-markdown-brand-logo-api)

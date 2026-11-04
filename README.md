@@ -1,77 +1,89 @@
-# n8n Company Research: company profiles from a domain
+# n8n Company Research: company profile from a domain (no data-provider API key)
 
-An import-and-run n8n workflow. Give it a list of company domains and it returns a structured profile built from each company's own website: name, description, industry, products, target customers, brand assets, key links and pricing signals, with the pages used as evidence.
+An import-and-run **n8n workflow template** for **company research from a website domain**. Give it a list of domains and it returns one structured profile per company, built from the company's own website: name, description, industry, products, target customers, logo, brand colors, key links, pricing signals and the pages used as evidence.
 
-No data-provider API key is needed. The only credential you add is the LLM you already use in n8n.
+- **One credential only:** the LLM you already use in n8n. No Clearbit, Apollo, Hunter or other data-provider key.
+- **Import, run, done:** ships with three sample domains.
+- **Honest by design:** every row carries a `status` and evidence URLs. Missing data stays empty instead of being guessed.
 
-> **Status: work in progress.** `workflow.json` is not published yet. This README describes the v1 target. Star or watch the repo to be notified when it lands, and delete this note once it has.
+> Tested against a local mock of the endpoints on n8n 2.35.7. Real-world feedback is welcome: please [open an issue](../../issues) with the domain and the `status` you got.
 
-## What you get
+## Quick start
 
-One row per domain. Fields are grouped so a Google Sheet stays readable.
+1. Download [`workflow.json`](workflow.json).
+2. In n8n: **Workflows → Import from File**, select it.
+3. Open the node **LLM (replace with your model)**, pick your credential (or swap the node for Anthropic, Gemini, Ollama or any chat model; it is a standard LangChain model input).
+4. Open the **Domains** node and replace the sample list (`stripe.com`, `linear.app`, `replynodes.com`) with yours.
+5. Click **Execute workflow**. Rows appear on the **Results** node.
+
+Tune pacing and size limits in the **Settings** node (`waitSeconds`, `maxHomepageChars`, ...). Details: [docs/how-it-works.md](docs/how-it-works.md).
+
+## Output fields
+
+One row per domain. Full JSON Schema: [docs/output.schema.json](docs/output.schema.json). Example shape: [examples/sample-output.illustrative.json](examples/sample-output.illustrative.json) (fictional, not real output).
 
 | Group | Fields |
 |---|---|
 | Identity | `domain`, `company_name`, `description`, `industry`, `products`, `target_customers` |
-| Brand | `logo_url`, `brand_colors` |
-| Site links | `pricing_url`, `docs_url`, `changelog_url`, `blog_url`, `careers_url`, `contact_url`, `social_links`, `has_llms_txt` |
+| Brand | `logo_url`, `logo_resolved`, `brand_colors` |
+| Site links | `pricing_url`, `docs_url`, `changelog_url`, `blog_url`, `careers_url`, `contact_url`, `social_links` |
 | Commercial | `has_free_trial`, `pricing_summary`, `integrations` |
-| Evidence and status | `source_url`, `evidence_url`, `status` |
+| Evidence and status | `source_url`, `evidence_urls`, `status`, `error`, `checked_at` |
 
-- Link and brand fields are extracted from page and brand data where found, and left empty otherwise.
-- Descriptive fields (`description`, `industry`, `products`, `target_customers`, `pricing_summary`, `integrations`) are summarized by your LLM, and each is meant to carry an `evidence_url` so you can check it.
-- `industry` is constrained to a short fixed list so you can filter and sort on it.
+`industry` is limited to a fixed list of 17 values so you can filter and group on it. Link and brand fields are extracted from the page and brand data where present and left empty otherwise. Descriptive fields come from your LLM, which is told to use only the provided text.
 
 ### `status` values
 
-`ok`, `needs_review` (a main field is missing), `blocked` (the site refused the fetch), `rate_limited`, `failed`.
+| status | meaning |
+|---|---|
+| `ok` | profile built |
+| `needs_review` | page too short or a main field is missing; check `error` |
+| `blocked` | the site refused the fetch (401, 403, 451) |
+| `rate_limited` | the free endpoint returned 429; wait or register for higher limits |
+| `failed` | invalid domain, HTTP error, or LLM failure; see `error` |
 
-A bad domain never stops the run: it gets a status and the workflow moves on to the next one.
+A bad domain never stops the run. It gets a status and the loop moves on.
 
 ## What this is not
 
-This workflow reads public websites. It does not return headcount, funding, revenue or contact emails, because websites rarely state them reliably. If you need those, use a dedicated data provider; this workflow will not guess them.
+This is **company research from a website**, not data enrichment. It does not return headcount, funding, revenue or contact emails, because websites rarely state them reliably, and it will not guess them. For those, use a dedicated data provider.
 
-## Requirements
+## FAQ
 
-- n8n (Cloud or self-hosted)
-- One LLM credential configured in n8n (OpenAI, Anthropic or any provider the n8n LLM nodes support)
+**How do I research a company in n8n without Clearbit or Apollo?**
+Fetch the company's homepage and pricing page as Markdown, let an LLM extract a fixed set of fields, and keep the source URLs. This template does exactly that. See [docs/faq.md](docs/faq.md).
 
-## Quick start
+**Which API keys do I need?** Only an LLM credential. The Markdown, brand and logo endpoints are keyless within their public limits.
 
-1. Download `workflow.json` from this repo.
-2. In n8n, open **Workflows → Import from File** and select it.
-3. Select your LLM credential on the LLM node.
-4. Run it. It ships with three sample domains so you see output straight away.
-5. Replace the sample domains with your own list, or connect a Google Sheet.
+**Does it work with Claude, Gemini or local models?** Yes. Replace the LLM node with any n8n chat model. It uses a Structured Output Parser, so models with reliable JSON output work best.
+
+**Can I use it with Google Sheets or a CRM?** Swap the Domains code node for a Sheets/CRM read node and append the Results to a write node. Keep the Loop and Wait nodes.
+
+**How many domains per run?** The free endpoints allow roughly 20 requests per minute per IP. The default pacing (12 seconds per domain) stays under that. Longer lists work, just slowly.
+
+**Is the data accurate?** It is only as accurate as the company's own website. Check `evidence_urls`, and treat `needs_review` rows manually.
 
 ## How it works
 
-1. Manual Trigger and a Set node holding the domains.
-2. A Code node normalizes each domain (removes scheme, `www`, paths).
-3. A loop processes domains in small batches with a short wait between them.
-4. HTTP Request fetches the homepage as Markdown from `md.replynodes.com`.
-5. HTTP Request fetches the pricing page. A missing page is not an error.
-6. HTTP Request fetches brand data from `brand.replynodes.com`.
-7. A merge step combines the three sources and trims the Markdown to a sensible length.
-8. An LLM node returns structured JSON with evidence URLs.
-9. A final Code node combines extracted and LLM fields and sets `status`.
-
-All HTTP nodes continue on error, so one failing domain does not stop the rest.
+Manual Trigger → Settings → Domains (normalize and dedupe) → Loop → fetch homepage Markdown → parse links → fetch pricing page, brand data and logo check → collect → LLM with structured output → build row → wait → Results. Every HTTP node continues on error. Full walkthrough: [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Limits
 
-The free endpoints need no API key but have daily limits. When a limit is hit, affected rows are marked `rate_limited`. To raise the limits, register an account by following the guide at https://replynodes.com/auth.md.
+Free endpoints need no key but have public rate limits (about 20 requests/minute/IP for Markdown and brand). When hit, rows get `rate_limited`. To raise limits, register by following https://replynodes.com/auth.md.
 
 ## Attribution and privacy
 
-Requests sent by this workflow carry an `X-Source: n8n-company-research` header so ReplyNodes can see how many people use the template. Only the domains you submit are sent to the endpoints. You can remove the header in the HTTP Request nodes.
+Requests carry an `X-Source: n8n-company-research` header so the endpoint operator, [ReplyNodes](https://replynodes.com), can count template usage. Only the domains you submit are sent. Change or remove it in the **Settings** node (`sourceHeader`).
+
+## Related
+
+- [Free Markdown, brand and logo API](https://github.com/replynodes/free-markdown-brand-logo-api): the endpoints this template calls.
 
 ## Roadmap
 
-- Google Sheets input and output variant
-- Listing on the n8n template library
-- Optional branch for ReplyNodes API key holders (extra sources and change tracking)
+- Google Sheets input/output variant
+- n8n template library listing
+- Optional branch for API key holders
 
 ## License
 
