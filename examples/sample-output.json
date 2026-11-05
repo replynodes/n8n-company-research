@@ -6,24 +6,52 @@
     "company_name": "Stripe",
     "description": "Stripe is a financial services platform that helps all types of businesses accept payments, build flexible billing models and manage money movement.",
     "industry": "Fintech / Payments",
-    "products": ["Payments", "Terminal", "Connect", "Radar", "Stripe Sigma", "Issuing", "Data Pipeline", "Link"],
-    "target_customers": ["businesses", "developers", "online retailers", "creators", "financial services", "platforms"],
+    "products": [
+      "Payments",
+      "Terminal",
+      "Connect",
+      "Radar",
+      "Stripe Sigma",
+      "Issuing",
+      "Data Pipeline",
+      "Link"
+    ],
+    "target_customers": [
+      "businesses",
+      "developers",
+      "online retailers",
+      "financial services",
+      "e-commerce platforms",
+      "subscription services"
+    ],
     "has_free_trial": null,
-    "pricing_summary": "Standard: 1.5% + €0.25 for standard EEA cards; Custom pricing available for large volumes.",
+    "pricing_summary": "Access a complete payments platform with simple, pay-as-you-go pricing. No setup fees, monthly fees, or hidden fees.",
     "integrations": [],
     "logo_url": "https://img.replynodes.com/stripe.com",
     "logo_resolved": true,
-    "brand_colors": ["#635bff", "#ee30fb", "#ffd601", "#533afd", "#9966ff", "#ff6118"],
+    "brand_colors": [
+      "#635bff",
+      "#ee30fb",
+      "#ffd601",
+      "#533afd",
+      "#9966ff",
+      "#ff6118"
+    ],
     "pricing_url": "https://stripe.com/pricing",
-    "docs_url": "https://docs.stripe.com/development",
+    "docs_url": "https://docs.stripe.com/no-code",
     "changelog_url": null,
-    "blog_url": "https://stripe.com/en-fr/newsroom/news/bfcm2025",
+    "blog_url": "https://stripe.com/en-fr/blog/introducing-our-agentic-commerce-solutions",
     "careers_url": null,
     "contact_url": null,
-    "social_links": { "github": "https://github.com/stripe" },
+    "social_links": {
+      "github": "https://github.com/stripe"
+    },
     "source_url": "https://stripe.com/",
-    "evidence_urls": ["https://stripe.com/", "https://stripe.com/pricing"],
-    "checked_at": "2026-11-04T11:09:07.484Z"
+    "evidence_urls": [
+      "https://stripe.com/",
+      "https://stripe.com/pricing"
+    ],
+    "checked_at": "2026-11-05T00:05:47.850Z"
   },
   {
     "domain": "linear.app",
@@ -32,24 +60,51 @@
     "company_name": "Linear",
     "description": "Linear is a product development system designed for planning and building products, integrating AI workflows for modern teams.",
     "industry": "Software / SaaS",
-    "products": ["Free", "Basic", "Business", "Enterprise"],
-    "target_customers": ["teams", "agents"],
+    "products": [
+      "Agent platform",
+      "Linear Agent",
+      "Loops",
+      "Triage Intelligence",
+      "Code Intelligence",
+      "Linear Insights",
+      "Linear Asks"
+    ],
+    "target_customers": [
+      "teams",
+      "agents",
+      "product teams"
+    ],
     "has_free_trial": true,
-    "pricing_summary": "Free for everyone; Basic at $10/user/month; Business at $16/user/month; Enterprise with custom pricing.",
-    "integrations": ["Zendesk", "Intercom", "Microsoft Teams"],
+    "pricing_summary": "Free for everyone with unlimited members, 2 teams, and 250 issues. Paid plans start at $10 per user/month.",
+    "integrations": [
+      "Microsoft Teams",
+      "Salesforce",
+      "Zendesk",
+      "Intercom"
+    ],
     "logo_url": "https://img.replynodes.com/linear.app",
     "logo_resolved": true,
-    "brand_colors": ["#9c9da1", "#626366", "#6b6b6b", "#ffebc6", "#191d20", "#27a644"],
+    "brand_colors": [
+      "#9c9da1",
+      "#626366",
+      "#6b6b6b",
+      "#ffebc6",
+      "#191d20",
+      "#27a644"
+    ],
     "pricing_url": "https://linear.app/pricing",
     "docs_url": null,
-    "changelog_url": "https://linear.app/changelog/2026-10-22-slack-and-github-loops",
+    "changelog_url": "https://linear.app/changelog",
     "blog_url": null,
     "careers_url": null,
     "contact_url": "https://linear.app/contact/sales",
     "social_links": {},
     "source_url": "https://linear.app/",
-    "evidence_urls": ["https://linear.app/", "https://linear.app/pricing"],
-    "checked_at": "2026-11-04T11:09:46.878Z"
+    "evidence_urls": [
+      "https://linear.app/",
+      "https://linear.app/pricing"
+    ],
+    "checked_at": "2026-11-05T00:06:09.032Z"
   },
   {
     "domain": "not-a-real-domain-xyz-12345.com",

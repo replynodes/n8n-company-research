@@ -20,7 +20,7 @@ Tune pacing and size limits in the **Settings** node (`waitSeconds`, `maxHomepag
 
 ## Output fields
 
-One row per domain. Full JSON Schema: [docs/output.schema.json](docs/output.schema.json). Example shape: [examples/sample-output.json](examples/sample-output.json) (real rows from a run on 2026-11-04, trimmed).
+One row per domain. Full JSON Schema: [docs/output.schema.json](docs/output.schema.json). Example shape: [examples/sample-output.json](examples/sample-output.json) (real rows from a live run on 2026-11-05, plus one failed row).
 
 | Group | Fields |
 |---|---|
