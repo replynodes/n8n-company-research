@@ -121,7 +121,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Rows that are not looked up still get a status, so a re-run does not retry them blindly.\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $input.item.json;\nconst reason = item.skip === 'duplicate'\n  ? 'same domain appears earlier in this run'\n  : 'not a valid domain';\nreturn { json: { ...blank, row_number: item.row_number, domain: item.domain,\n  status: item.skip === 'duplicate' ? 'skipped_duplicate' : 'error', error: item.skip + ': ' + reason } };\n"
+        "jsCode": "// Rows that are not looked up still get a status, so a re-run does not retry them blindly.\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $input.item.json;\nconst reason = item.skip === 'duplicate'\n  ? 'same domain appears earlier in this run'\n  : 'not a valid domain';\nreturn { json: { ...blank, row_number: item.row_number, domain: item.input,\n  status: item.skip === 'duplicate' ? 'skipped_duplicate' : 'error', error: item.skip + ': ' + reason } };\n"
       },
       "id": "d52ad831-9335-433b-a153-43f281206415",
       "name": "Build skip row",
@@ -298,7 +298,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Accept a hit only when its domain equals the domain we asked for. A near match is not a match.\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\nfunction companyToRow(c, loadedAt) {\n  const funding = c.funding || {};\n  const round = funding.latest_round || {};\n  const hq = c.headquarters || {};\n  const emp = c.employees || {};\n  return {\n    status: 'found',\n    source: 'replynodes_db',\n    name: c.name ?? '',\n    description: c.description ?? '',\n    industries: Array.isArray(c.industries) ? c.industries.join('; ') : '',\n    hq_country: hq.country_code ?? '',\n    hq_region: hq.region ?? '',\n    employees_min: emp.min ?? '',\n    employees_max: emp.max ?? '',\n    funding_total_usd: funding.total_usd ?? '',\n    latest_round_type: round.type ?? '',\n    latest_round_date: round.date ?? '',\n    data_loaded_at: loadedAt ?? '',\n    checked_at: new Date().toISOString(),\n    error: '',\n  };\n}\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $('Loop over domains').item.json;\nconst res = $input.item.json;\nconst s = res.statusCode;\nconst body = res.body && typeof res.body === 'object' ? res.body : {};\nconst base = { ...blank, row_number: item.row_number, domain: item.domain };\n\nif (s === 200 && body.data && Array.isArray(body.data.results)) {\n  const hit = body.data.results.find((r) => normalizeDomain(r.domain) === item.domain);\n  if (hit) return { json: { ...base, ...companyToRow(hit, body.data.loaded_at), _fallback: false } };\n  return { json: { ...base, status: 'not_found', data_loaded_at: body.data.loaded_at ?? '',\n    error: 'not in the company database', _fallback: true } };\n}\n\nlet detail = '';\nif (!s) detail = (res.error && (res.error.message || res.error.description)) || 'no response';\nelse {\n  const e = body.error || {};\n  detail = 'HTTP ' + s + (e.message ? ': ' + e.message : (e.code ? ': ' + e.code : ''));\n  if (s === 401) detail += ' (check the ReplyNodes API credential)';\n  if (s === 402) detail += ' (out of credits)';\n}\nreturn { json: { ...base, status: 'error', error: detail, _fallback: false } };\n"
+        "jsCode": "// Accept a hit only when its domain equals the domain we asked for. A near match is not a match.\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\nfunction companyToRow(c, loadedAt) {\n  const funding = c.funding || {};\n  const round = funding.latest_round || {};\n  const hq = c.headquarters || {};\n  const emp = c.employees || {};\n  return {\n    status: 'found',\n    source: 'replynodes_db',\n    name: c.name ?? '',\n    description: c.description ?? '',\n    industries: Array.isArray(c.industries) ? c.industries.join('; ') : '',\n    hq_country: hq.country_code ?? '',\n    hq_region: hq.region ?? '',\n    employees_min: emp.min ?? '',\n    employees_max: emp.max ?? '',\n    funding_total_usd: funding.total_usd ?? '',\n    latest_round_type: round.type ?? '',\n    latest_round_date: round.date ?? '',\n    data_loaded_at: loadedAt ?? '',\n    checked_at: new Date().toISOString(),\n    error: '',\n  };\n}\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $('Loop over domains').item.json;\nconst res = $input.item.json;\nconst s = res.statusCode;\nconst body = res.body && typeof res.body === 'object' ? res.body : {};\n// Keep the domain exactly as the user typed it, so the sheet cell is not rewritten.\nconst base = { ...blank, row_number: item.row_number, domain: item.input };\n\nif (s === 200 && body.data && Array.isArray(body.data.results)) {\n  const hit = body.data.results.find((r) => normalizeDomain(r.domain) === item.domain);\n  if (hit) return { json: { ...base, ...companyToRow(hit, body.data.loaded_at), _fallback: false } };\n  return { json: { ...base, status: 'not_found', data_loaded_at: body.data.loaded_at ?? '',\n    error: 'not in the company database', _fallback: true } };\n}\n\nlet detail = '';\nif (!s) detail = (res.error && (res.error.message || res.error.description)) || 'no response';\nelse {\n  const e = body.error || {};\n  detail = 'HTTP ' + s + (e.message ? ': ' + e.message : (e.code ? ': ' + e.code : ''));\n  if (s === 401) detail += ' (check the ReplyNodes API credential)';\n  if (s === 402) detail += ' (out of credits)';\n}\nreturn { json: { ...base, status: 'error', error: detail, _fallback: false } };\n"
       },
       "id": "b2a7466a-6ca3-4b54-a063-1101cd6a74cd",
       "name": "Evaluate search",
@@ -346,7 +346,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $('Settings').first().json.mdBase }}/https://{{ $json.domain }}",
+        "url": "={{ $('Settings').first().json.mdBase }}/https://{{ $('Loop over domains').item.json.domain }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -424,191 +424,12 @@
           "cachedResultName": ""
         },
         "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "row_number": "={{ $json.row_number }}",
-            "status": "={{ $json.status }}",
-            "source": "={{ $json.source }}",
-            "name": "={{ $json.name }}",
-            "description": "={{ $json.description }}",
-            "industries": "={{ $json.industries }}",
-            "hq_country": "={{ $json.hq_country }}",
-            "hq_region": "={{ $json.hq_region }}",
-            "employees_min": "={{ $json.employees_min }}",
-            "employees_max": "={{ $json.employees_max }}",
-            "funding_total_usd": "={{ $json.funding_total_usd }}",
-            "latest_round_type": "={{ $json.latest_round_type }}",
-            "latest_round_date": "={{ $json.latest_round_date }}",
-            "data_loaded_at": "={{ $json.data_loaded_at }}",
-            "checked_at": "={{ $json.checked_at }}",
-            "error": "={{ $json.error }}"
-          },
+          "mappingMode": "autoMapInputData",
+          "value": {},
           "matchingColumns": [
             "row_number"
           ],
-          "schema": [
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": true,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "source",
-              "displayName": "source",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "name",
-              "displayName": "name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "industries",
-              "displayName": "industries",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "hq_country",
-              "displayName": "hq_country",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "hq_region",
-              "displayName": "hq_region",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "employees_min",
-              "displayName": "employees_min",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "employees_max",
-              "displayName": "employees_max",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "funding_total_usd",
-              "displayName": "funding_total_usd",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "latest_round_type",
-              "displayName": "latest_round_type",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "latest_round_date",
-              "displayName": "latest_round_date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "data_loaded_at",
-              "displayName": "data_loaded_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "checked_at",
-              "displayName": "checked_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            },
-            {
-              "id": "error",
-              "displayName": "error",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": false,
-              "removed": false
-            }
-          ],
+          "schema": [],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
