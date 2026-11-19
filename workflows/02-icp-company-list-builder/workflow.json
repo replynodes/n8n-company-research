@@ -1,0 +1,623 @@
+{
+  "name": "ICP company list builder (keyword + country + size to Google Sheets, ReplyNodes)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "9f66b67a-8d05-49e4-a21f-20774e11bd8f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Settings: describe your ideal customer profile here, then run.\n//\n// keyword       one term or a \"quoted phrase\". Avoid OR and -exclusions: those queries are slow and\n//               often time out. Results are ranked by keyword match and company prominence.\n// countries     ISO-2 codes, comma separated (for example 'US,GB'). Leave '' for any country.\n// employeesMin / employeesMax   company size range (leave null for no limit).\n// industries    optional, separated with | (must match the ReplyNodes industry names). Leave '' for any.\n// maxPages      pages of 10 companies to fetch. Each page that returns companies costs 1 credit. Capped at 10.\nreturn [\n  {\n    json: {\n      keyword: 'carbon accounting software',\n      countries: 'US',\n      employeesMin: 11,\n      employeesMax: 200,\n      industries: '',\n      maxPages: 5,\n      apiBase: 'https://api.replynodes.com',\n      spacingSeconds: 1.2,\n      retryAfter504Seconds: 30,\n      // Sent as the X-Source header so ReplyNodes can count usage of this template.\n      sourceHeader: 'n8n-company-research/icp-list-builder',\n    },\n  },\n];\n"
+      },
+      "id": "6aa52e5d-3d4e-463b-a72d-fda2275c8551",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "options": {}
+      },
+      "id": "44b28f7e-c831-4a95-a44e-d44e051a933f",
+      "name": "Read existing rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the loop state once: query parameters, page counter, and the domains already in the sheet\n// (so the same company is never added twice).\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\nconst cfg = $('Settings').first().json;\nconst keyword = String(cfg.keyword ?? '').trim();\nif (!keyword) throw new Error('Set a keyword in the Settings node.');\n\nconst baseQs = { query: keyword };\nconst countries = String(cfg.countries ?? '').replace(/\\s+/g, '');\nif (countries) baseQs.countries = countries;\nif (cfg.employeesMin !== null && cfg.employeesMin !== '' && cfg.employeesMin !== undefined) baseQs.employees_min = cfg.employeesMin;\nif (cfg.employeesMax !== null && cfg.employeesMax !== '' && cfg.employeesMax !== undefined) baseQs.employees_max = cfg.employeesMax;\nconst industries = String(cfg.industries ?? '').trim();\nif (industries) baseQs.industries = industries;\n\nconst existing = $input.all().map((i) => normalizeDomain(i.json.domain)).filter(Boolean);\nconst maxPages = Math.min(Math.max(parseInt(cfg.maxPages, 10) || 5, 1), 10);\n\nreturn [{ json: {\n  baseQs,\n  query: keyword,\n  page: 1,\n  cursor: '',\n  attempt: 0,\n  maxPages,\n  seen: [...new Set(existing)],\n  rows: [],\n  skippedDuplicates: 0,\n  pagesFetched: 0,\n  stopReason: '',\n  error: '',\n  done: false,\n  waitSeconds: 0,\n} }];\n"
+      },
+      "id": "24bb6786-e239-4c45-aae0-f8e728ac3193",
+      "name": "Init state",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a3b89048-b5a0-4021-aece-3067dfd1f62a",
+      "name": "Next request",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.apiBase }}/v1/company/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify({ ...$json.baseQs, ...($json.cursor ? { cursor: $json.cursor } : {}) }) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Source",
+              "value": "={{ $('Settings').first().json.sourceHeader }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f978914b-d929-4b6e-a771-b9baa26603e5",
+      "name": "Search page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "replynodes-api-credential",
+          "name": "ReplyNodes API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Read one page of results and decide what happens next: add rows, fetch the next page,\n// retry once (429/503/504 or no response), or stop with a reason. Rows collected so far are never lost.\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\nfunction companyToRow(c, loadedAt) {\n  const funding = c.funding || {};\n  const round = funding.latest_round || {};\n  const hq = c.headquarters || {};\n  const emp = c.employees || {};\n  return {\n    status: 'found',\n    source: 'replynodes_db',\n    name: c.name ?? '',\n    description: c.description ?? '',\n    industries: Array.isArray(c.industries) ? c.industries.join('; ') : '',\n    hq_country: hq.country_code ?? '',\n    hq_region: hq.region ?? '',\n    employees_min: emp.min ?? '',\n    employees_max: emp.max ?? '',\n    funding_total_usd: funding.total_usd ?? '',\n    latest_round_type: round.type ?? '',\n    latest_round_date: round.date ?? '',\n    data_loaded_at: loadedAt ?? '',\n    checked_at: new Date().toISOString(),\n    error: '',\n  };\n}\nconst st = $('Next request').item.json;\nconst cfg = $('Settings').first().json;\nconst res = $input.item.json;\nconst s = res.statusCode;\nconst body = res.body && typeof res.body === 'object' ? res.body : {};\nconst next = { ...st, rows: [...st.rows] };\n\nif (s === 200 && body.data && Array.isArray(body.data.results)) {\n  const seen = new Set(st.seen);\n  for (const c of body.data.results) {\n    const d = normalizeDomain(c.domain);\n    if (!d || seen.has(d)) { next.skippedDuplicates += 1; continue; }\n    seen.add(d);\n    next.rows.push({ domain: d, ...companyToRow(c, body.data.loaded_at), query: st.query, page: st.page });\n  }\n  next.seen = [...seen];\n  next.pagesFetched = st.page;\n  next.attempt = 0;\n  const cursor = (body.meta && body.meta.next_cursor) || '';\n  if (!cursor) { next.done = true; next.stopReason = 'no more results'; }\n  else if (st.page >= st.maxPages) { next.done = true; next.stopReason = 'reached max_pages (' + st.maxPages + ')'; }\n  else { next.page = st.page + 1; next.cursor = cursor; next.done = false; next.waitSeconds = cfg.spacingSeconds; }\n  return { json: next };\n}\n\nconst retryable = !s || s === 429 || s === 503 || s === 504;\nif (retryable && st.attempt === 0) {\n  const retryAfter = parseInt((res.headers || {})['retry-after'], 10);\n  const floor = s === 504 ? cfg.retryAfter504Seconds : 1;\n  const base = s === 504 ? cfg.retryAfter504Seconds : 5;\n  next.attempt = 1;\n  next.done = false;\n  next.waitSeconds = Math.min(Math.max(Number.isNaN(retryAfter) ? base : retryAfter, floor), 120);\n  return { json: next };\n}\n\nconst e = body.error || {};\nlet detail = !s ? ((res.error && (res.error.message || res.error.description)) || 'no response')\n  : 'HTTP ' + s + (e.message ? ': ' + e.message : (e.code ? ': ' + e.code : ''));\nif (s === 401) detail += ' (check the ReplyNodes API credential)';\nif (s === 402) detail += ' (out of credits)';\nif (s === 409) detail += ' (the cursor expired; run again)';\nnext.done = true;\nnext.error = detail + ' on page ' + st.page;\nnext.stopReason = 'stopped early: ' + next.error;\nreturn { json: next };\n"
+      },
+      "id": "4cdb5639-3e81-4974-a386-a0d7f66d8f94",
+      "name": "Evaluate page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f67fffc9-c1e5-48bd-a0f0-008d34d3c2e8",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2cb4077e-cb08-4eda-a0b3-b16cf6a9ae59",
+      "name": "Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "f8c445f1-95e4-4347-a7c0-96584c0209d9",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        440
+      ],
+      "webhookId": "1899d18c-1223-485d-a77b-d7b8e6ef7eef"
+    },
+    {
+      "parameters": {
+        "jsCode": "// One item per new company.\nconst rows = $input.first().json.rows || [];\nreturn rows.map((r) => ({ json: r }));\n"
+      },
+      "id": "fb6a78b4-e09d-479b-a391-7e314fb7a032",
+      "name": "Rows to add",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// What happened in this run (also visible if the list is empty).\nconst st = $input.first().json;\nreturn [{ json: {\n  pages_fetched: st.pagesFetched,\n  companies_added: st.rows.length,\n  duplicates_skipped: st.skippedDuplicates,\n  stop_reason: st.stopReason,\n  error: st.error,\n} }];\n"
+      },
+      "id": "7aae8b95-9763-4b33-ab79-2629642dbb6e",
+      "name": "Run summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "domain": "={{ $json.domain }}",
+            "status": "={{ $json.status }}",
+            "source": "={{ $json.source }}",
+            "name": "={{ $json.name }}",
+            "description": "={{ $json.description }}",
+            "industries": "={{ $json.industries }}",
+            "hq_country": "={{ $json.hq_country }}",
+            "hq_region": "={{ $json.hq_region }}",
+            "employees_min": "={{ $json.employees_min }}",
+            "employees_max": "={{ $json.employees_max }}",
+            "funding_total_usd": "={{ $json.funding_total_usd }}",
+            "latest_round_type": "={{ $json.latest_round_type }}",
+            "latest_round_date": "={{ $json.latest_round_date }}",
+            "data_loaded_at": "={{ $json.data_loaded_at }}",
+            "checked_at": "={{ $json.checked_at }}",
+            "error": "={{ $json.error }}",
+            "query": "={{ $json.query }}",
+            "page": "={{ $json.page }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industries",
+              "displayName": "industries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hq_country",
+              "displayName": "hq_country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hq_region",
+              "displayName": "hq_region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "employees_min",
+              "displayName": "employees_min",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "employees_max",
+              "displayName": "employees_max",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "funding_total_usd",
+              "displayName": "funding_total_usd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "latest_round_type",
+              "displayName": "latest_round_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "latest_round_date",
+              "displayName": "latest_round_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "data_loaded_at",
+              "displayName": "data_loaded_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "checked_at",
+              "displayName": "checked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "page",
+              "displayName": "page",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0bc298ff-715a-44ac-afe8-dd4a82adf251",
+      "name": "Add to sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## ICP company list builder\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `query`, `page`).\n2. Connect your **Google Sheets** account in **Read existing rows** and **Add to sheet**, and pick the sheet.\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in **Search page**.\n4. Edit the keyword, countries and size range in **Settings**, then click **Execute workflow**.\n\nNew companies are appended. Domains already in the sheet are skipped.",
+        "height": 320,
+        "width": 560,
+        "color": 7
+      },
+      "id": "3832849f-fcb5-4f56-aff1-6b31f76418a2",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Cost and limits\n\n- 1 credit per page of up to 10 companies. Empty pages and errors are free. `maxPages` caps the spend (default 5 = at most 5 credits).\n- Search is by keyword, not by meaning: \"top 10 fintech startups\" will not work. Use a plain term or a quoted phrase, plus country and size filters.\n- Avoid OR and -exclusion in the keyword. Those queries often time out (the API gives up after 5 seconds).\n- 429 / 503 / 504 are retried once. If the retry fails, the rows already collected are still added and the **Run summary** says why it stopped.\n- Data comes from third-party datasets (see `data_loaded_at`). Some records are stale, so spot-check before you rely on them.",
+        "height": 280,
+        "width": 640,
+        "color": 7
+      },
+      "id": "92a10981-28b5-4597-a6b8-ee355f1f731c",
+      "name": "Cost and limits",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -200
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Read existing rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read existing rows": {
+      "main": [
+        [
+          {
+            "node": "Init state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init state": {
+      "main": [
+        [
+          {
+            "node": "Next request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next request": {
+      "main": [
+        [
+          {
+            "node": "Search page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search page": {
+      "main": [
+        [
+          {
+            "node": "Evaluate page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate page": {
+      "main": [
+        [
+          {
+            "node": "Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done?": {
+      "main": [
+        [
+          {
+            "node": "Rows to add",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Next request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rows to add": {
+      "main": [
+        [
+          {
+            "node": "Add to sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

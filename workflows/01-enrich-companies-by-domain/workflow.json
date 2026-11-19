@@ -1,0 +1,941 @@
+{
+  "name": "Enrich companies by domain (Google Sheets + ReplyNodes company database)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f970a873-4a3a-4af3-aecd-329fd5c35038",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Settings. For a first run you only need to connect your Google Sheet and your ReplyNodes API key.\n//\n// Company search is 1 credit per lookup that finds a company. Lookups that find nothing are free.\n// The API allows one search at a time and 60 per minute, so the workflow looks up one domain at a time\n// and pauses spacingSeconds between rows.\nreturn [\n  {\n    json: {\n      apiBase: 'https://api.replynodes.com',\n      mdBase: 'https://md.replynodes.com',\n      spacingSeconds: 1.2,\n      // Pause before the single retry after a 504 (the API asks for a 30 second pause).\n      retryAfter504Seconds: 30,\n      // Sent as the X-Source header so ReplyNodes can count usage of this template.\n      // Delete the header in the HTTP Request nodes if you prefer not to send it.\n      sourceHeader: 'n8n-company-research/enrich-by-domain',\n    },\n  },\n];\n"
+      },
+      "id": "b59f6b3f-ee3b-4395-a279-bcf627224b9e",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "options": {}
+      },
+      "id": "efc72351-a079-423c-afb1-f5fb9da9085d",
+      "name": "Read domains",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Keep rows with a domain and an empty status, normalize the domain, and flag rows that\n// should not trigger a lookup (invalid domain, or a duplicate of an earlier row in this run).\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\n\nconst seen = new Set();\nconst out = [];\nfor (const item of $input.all()) {\n  const row = item.json;\n  const raw = String(row.domain ?? '').trim();\n  const status = String(row.status ?? '').trim();\n  if (!raw || status) continue; // already processed (or empty line)\n  const domain = normalizeDomain(raw);\n  let skip = '';\n  if (!domain) skip = 'invalid_domain';\n  else if (seen.has(domain)) skip = 'duplicate';\n  else seen.add(domain);\n  out.push({ json: { row_number: row.row_number, input: raw, domain, skip } });\n}\nreturn out;\n"
+      },
+      "id": "ed67bd81-20c0-4c47-a8a3-12c77602e859",
+      "name": "Select rows to process",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "f8de9d88-2e43-4445-a0b1-d4b32e2f856f",
+      "name": "Loop over domains",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "579962a3-3c90-496c-a0cd-64cd42bb2d45",
+              "leftValue": "={{ $json.skip === '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ed7461e6-ac5f-443a-af1d-4a603565c2e1",
+      "name": "Needs lookup?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Rows that are not looked up still get a status, so a re-run does not retry them blindly.\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $input.item.json;\nconst reason = item.skip === 'duplicate'\n  ? 'same domain appears earlier in this run'\n  : 'not a valid domain';\nreturn { json: { ...blank, row_number: item.row_number, domain: item.domain,\n  status: item.skip === 'duplicate' ? 'skipped_duplicate' : 'error', error: item.skip + ': ' + reason } };\n"
+      },
+      "id": "d52ad831-9335-433b-a153-43f281206415",
+      "name": "Build skip row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.apiBase }}/v1/company/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $('Loop over domains').item.json.domain }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Source",
+              "value": "={{ $('Settings').first().json.sourceHeader }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "d2ef0718-37e0-4f34-a0b3-4f1f7bf32f1b",
+      "name": "Search company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "replynodes-api-credential",
+          "name": "ReplyNodes API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Decide whether the response deserves the single retry (429, 503, 504 or no response at all)\n// and how long to wait first.\nconst res = $input.item.json;\nconst s = res.statusCode;\nconst cfg = $('Settings').first().json;\nconst retry = !s || s === 429 || s === 503 || s === 504;\nconst retryAfter = parseInt((res.headers || {})['retry-after'], 10);\nconst floor = s === 504 ? cfg.retryAfter504Seconds : 1;\nconst base = s === 504 ? cfg.retryAfter504Seconds : 5;\nconst wait = Math.min(Math.max(Number.isNaN(retryAfter) ? base : retryAfter, floor), 120);\nreturn { json: { ...res, _retry: retry, _waitSeconds: wait } };\n"
+      },
+      "id": "b04f05db-4c5d-4dac-a1b0-28c0af42da09",
+      "name": "Check response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1aa3b315-7d7c-4823-ab44-209797b1a157",
+              "leftValue": "={{ $json._retry }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6c6b58aa-1b5a-4765-a101-38e8eaec1b5f",
+      "name": "Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json._waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "e67819e9-d805-4e34-addb-6e73a0bbbac2",
+      "name": "Wait before retry",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        100
+      ],
+      "webhookId": "52b69135-840e-4573-a0c2-ffc8103d8739"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.apiBase }}/v1/company/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $('Loop over domains').item.json.domain }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Source",
+              "value": "={{ $('Settings').first().json.sourceHeader }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "fa28aece-236c-4b66-a264-1f560448853f",
+      "name": "Search company (retry)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "replynodes-api-credential",
+          "name": "ReplyNodes API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Accept a hit only when its domain equals the domain we asked for. A near match is not a match.\nfunction normalizeDomain(raw) {\n  let s = String(raw ?? '').trim().toLowerCase();\n  if (!s) return '';\n  s = s.replace(/^[a-z][a-z0-9+.-]*:\\/\\//, ''); // protocol\n  s = s.split(/[/?#]/)[0]; // path, query, hash\n  s = s.replace(/^[^@]*@/, ''); // credentials\n  s = s.replace(/:\\d+$/, ''); // port\n  s = s.replace(/\\.$/, '').replace(/^www\\./, '');\n  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s) ? s : '';\n}\nfunction companyToRow(c, loadedAt) {\n  const funding = c.funding || {};\n  const round = funding.latest_round || {};\n  const hq = c.headquarters || {};\n  const emp = c.employees || {};\n  return {\n    status: 'found',\n    source: 'replynodes_db',\n    name: c.name ?? '',\n    description: c.description ?? '',\n    industries: Array.isArray(c.industries) ? c.industries.join('; ') : '',\n    hq_country: hq.country_code ?? '',\n    hq_region: hq.region ?? '',\n    employees_min: emp.min ?? '',\n    employees_max: emp.max ?? '',\n    funding_total_usd: funding.total_usd ?? '',\n    latest_round_type: round.type ?? '',\n    latest_round_date: round.date ?? '',\n    data_loaded_at: loadedAt ?? '',\n    checked_at: new Date().toISOString(),\n    error: '',\n  };\n}\nconst blank = {\n  status: '', source: '', name: '', description: '', industries: '', hq_country: '', hq_region: '',\n  employees_min: '', employees_max: '', funding_total_usd: '', latest_round_type: '',\n  latest_round_date: '', data_loaded_at: '', checked_at: new Date().toISOString(), error: '',\n};\nconst item = $('Loop over domains').item.json;\nconst res = $input.item.json;\nconst s = res.statusCode;\nconst body = res.body && typeof res.body === 'object' ? res.body : {};\nconst base = { ...blank, row_number: item.row_number, domain: item.domain };\n\nif (s === 200 && body.data && Array.isArray(body.data.results)) {\n  const hit = body.data.results.find((r) => normalizeDomain(r.domain) === item.domain);\n  if (hit) return { json: { ...base, ...companyToRow(hit, body.data.loaded_at), _fallback: false } };\n  return { json: { ...base, status: 'not_found', data_loaded_at: body.data.loaded_at ?? '',\n    error: 'not in the company database', _fallback: true } };\n}\n\nlet detail = '';\nif (!s) detail = (res.error && (res.error.message || res.error.description)) || 'no response';\nelse {\n  const e = body.error || {};\n  detail = 'HTTP ' + s + (e.message ? ': ' + e.message : (e.code ? ': ' + e.code : ''));\n  if (s === 401) detail += ' (check the ReplyNodes API credential)';\n  if (s === 402) detail += ' (out of credits)';\n}\nreturn { json: { ...base, status: 'error', error: detail, _fallback: false } };\n"
+      },
+      "id": "b2a7466a-6ca3-4b54-a063-1101cd6a74cd",
+      "name": "Evaluate search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9b2e8715-a56a-4dd0-abfc-7fdde031ae99",
+              "leftValue": "={{ $json._fallback }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5a710a49-91d6-450f-ad96-49b2a94aae50",
+      "name": "Try live site?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.mdBase }}/https://{{ $json.domain }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Source",
+              "value": "={{ $('Settings').first().json.sourceHeader }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a476a4f1-bc02-404b-a3d9-cc3e44dbeba8",
+      "name": "Fetch live site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Fallback for companies missing from the database: take name and description from the live site.\n// No headcount or funding is guessed.\nconst prev = $('Evaluate search').item.json;\nconst res = $input.item.json;\nconst row = { ...prev };\ndelete row._fallback;\nconst md = res.statusCode === 200 && res.body && res.body.data ? res.body.data.metadata || {} : null;\nif (md && (md.site_name || md.title || md.description)) {\n  row.status = 'found_live_only';\n  row.source = 'live_site';\n  row.name = md.site_name || md.title || '';\n  row.description = md.description || '';\n  row.error = '';\n  row.checked_at = new Date().toISOString();\n} else {\n  row.error = 'not in the company database; live site fetch failed' + (res.statusCode ? ' (HTTP ' + res.statusCode + ')' : '');\n}\nreturn { json: row };\n"
+      },
+      "id": "b23d4ee8-b5f4-4868-a4f4-5dd9c10c31f9",
+      "name": "Build live-site row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Rows that go straight to the sheet carry no internal flags.\nconst row = { ...$input.item.json };\ndelete row._fallback;\nreturn { json: row };\n"
+      },
+      "id": "b538cfb6-35b8-49d4-a1b7-c9395b5b93dc",
+      "name": "Strip flags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "status": "={{ $json.status }}",
+            "source": "={{ $json.source }}",
+            "name": "={{ $json.name }}",
+            "description": "={{ $json.description }}",
+            "industries": "={{ $json.industries }}",
+            "hq_country": "={{ $json.hq_country }}",
+            "hq_region": "={{ $json.hq_region }}",
+            "employees_min": "={{ $json.employees_min }}",
+            "employees_max": "={{ $json.employees_max }}",
+            "funding_total_usd": "={{ $json.funding_total_usd }}",
+            "latest_round_type": "={{ $json.latest_round_type }}",
+            "latest_round_date": "={{ $json.latest_round_date }}",
+            "data_loaded_at": "={{ $json.data_loaded_at }}",
+            "checked_at": "={{ $json.checked_at }}",
+            "error": "={{ $json.error }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "industries",
+              "displayName": "industries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "hq_country",
+              "displayName": "hq_country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "hq_region",
+              "displayName": "hq_region",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "employees_min",
+              "displayName": "employees_min",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "employees_max",
+              "displayName": "employees_max",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "funding_total_usd",
+              "displayName": "funding_total_usd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "latest_round_type",
+              "displayName": "latest_round_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "latest_round_date",
+              "displayName": "latest_round_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "data_loaded_at",
+              "displayName": "data_loaded_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "checked_at",
+              "displayName": "checked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0ae6845d-01d5-474d-ad44-577509af366d",
+      "name": "Write row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3300,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.spacingSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "728b6d38-a862-4e6d-a247-940e5986170f",
+      "name": "Pause between lookups",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3520,
+        300
+      ],
+      "webhookId": "4463fb95-fca0-4c3e-a87e-fbcc5cab3298"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Counts per status for this run.\nconst written = $('Write row').all().length;\nreturn [{ json: { rows_written: written, note: 'See the sheet for per-row status. Re-run to retry rows with an empty status.' } }];\n"
+      },
+      "id": "3e45d17d-c33c-4d82-a7d4-39dc1eb763f0",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Enrich companies by domain\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `error`). Put one domain per row in `domain`.\n2. Connect your **Google Sheets** account in **Read domains** and **Write row**, and pick the sheet.\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in both **Search company** nodes.\n4. Click **Execute workflow**.\n\nOnly rows with an **empty status** are processed, so you can add rows and run again.",
+        "height": 300,
+        "width": 560,
+        "color": 7
+      },
+      "id": "fa6daf43-2540-4288-aaf3-192d67f55850",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Cost, limits, status values\n\n- Each lookup that finds a company costs **1 credit**. Not found and errors are free.\n- One lookup at a time, about 1 per second. 429 / 503 / 504 are retried once, then the row gets `status = error`.\n- `found`: matched in the ReplyNodes company database (exact domain).\n- `found_live_only`: not in the database; name and description come from the live site. No size or funding.\n- `not_found`, `error`, `skipped_duplicate`: see the `error` column.\n- Data comes from third-party datasets (see `data_loaded_at`). A few records are stale or map to the wrong company, so spot-check before you rely on them.",
+        "height": 300,
+        "width": 640,
+        "color": 7
+      },
+      "id": "1e6d8226-90ad-45b6-ad2a-8a4066bf416c",
+      "name": "Cost and limits",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -140
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Read domains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read domains": {
+      "main": [
+        [
+          {
+            "node": "Select rows to process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select rows to process": {
+      "main": [
+        [
+          {
+            "node": "Loop over domains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over domains": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs lookup?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs lookup?": {
+      "main": [
+        [
+          {
+            "node": "Search company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build skip row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build skip row": {
+      "main": [
+        [
+          {
+            "node": "Write row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search company": {
+      "main": [
+        [
+          {
+            "node": "Check response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check response": {
+      "main": [
+        [
+          {
+            "node": "Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry?": {
+      "main": [
+        [
+          {
+            "node": "Wait before retry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evaluate search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait before retry": {
+      "main": [
+        [
+          {
+            "node": "Search company (retry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search company (retry)": {
+      "main": [
+        [
+          {
+            "node": "Evaluate search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate search": {
+      "main": [
+        [
+          {
+            "node": "Try live site?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Try live site?": {
+      "main": [
+        [
+          {
+            "node": "Fetch live site",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Strip flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch live site": {
+      "main": [
+        [
+          {
+            "node": "Build live-site row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build live-site row": {
+      "main": [
+        [
+          {
+            "node": "Write row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strip flags": {
+      "main": [
+        [
+          {
+            "node": "Write row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write row": {
+      "main": [
+        [
+          {
+            "node": "Pause between lookups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause between lookups": {
+      "main": [
+        [
+          {
+            "node": "Loop over domains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

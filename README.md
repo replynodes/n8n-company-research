@@ -8,6 +8,17 @@ An import-and-run **n8n workflow template** for **company research from a websit
 
 > Tested on n8n Cloud against the live endpoints (stripe.com, linear.app, replynodes.com, plus an invalid and a nonexistent domain) and on n8n 2.35.7 with a local mock. Feedback welcome: [open an issue](../../issues) with the domain and the `status` you got.
 
+## More company-data templates in this repo
+
+Need headcount, funding and HQ instead of a website summary? These Google Sheets templates use the ReplyNodes company database (API key required, 500 free credits):
+
+| template | what it does | cost |
+|---|---|---|
+| [Enrich companies by domain](workflows/01-enrich-companies-by-domain/) | domains in a sheet in, company profile columns out (name, description, industry, HQ, size, funding), live-site fallback when a company is missing | 1 credit per company found |
+| [ICP company list builder](workflows/02-icp-company-list-builder/) | keyword + country + size range in, a de-duplicated list of matching companies appended to a sheet | 1 credit per 10 companies |
+
+The template below (root `workflow.json`) needs no data-provider key.
+
 ## Quick start
 
 1. Download [`workflow.json`](workflow.json).
