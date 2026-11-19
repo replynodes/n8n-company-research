@@ -2,6 +2,8 @@
 
 Put domains in a Google Sheet, run the workflow, and get company name, description, industry, HQ country, employee range and funding back in the same rows. Data comes from the ReplyNodes company database. If a company is not in the database, the workflow falls back to the live website for name and description and says so in the `status` column.
 
+![Enrich companies by domain: a Google Sheet of domains filled in by the workflow](demo.gif)
+
 ## What you need
 
 - n8n (tested on 2.35.7) and a Google account.
