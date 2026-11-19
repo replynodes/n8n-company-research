@@ -256,7 +256,7 @@
     },
     {
       "parameters": {
-        "content": "## ICP company list builder\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `query`, `page`).\n2. Connect your **Google Sheets** account in **Read existing rows** and **Add to sheet**, and pick the sheet.\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in **Search page**.\n4. Edit the keyword, countries and size range in **Settings**, then click **Execute workflow**.\n\nNew companies are appended. Domains already in the sheet are skipped.",
+        "content": "## ICP company list builder\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `query`, `page`).\n2. Connect your **Google Sheets** account in **Read existing rows** and **Add to sheet**, and pick the sheet. Then in **Add to sheet** set *Mapping Column Mode* = **Map Automatically** (n8n clears it when you pick a sheet).\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in **Search page**.\n4. Edit the keyword, countries and size range in **Settings**, then click **Execute workflow**.\n\nNew companies are appended. Domains already in the sheet are skipped.",
         "height": 320,
         "width": 560,
         "color": 7

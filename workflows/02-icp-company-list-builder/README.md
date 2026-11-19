@@ -20,7 +20,7 @@ Describe the companies you want (a keyword, countries, and a size range), run th
    ```
 
 2. **Import** [`workflow.json`](workflow.json): Workflows, Import from File.
-3. **Google Sheets:** open **Read existing rows** and **Add to sheet**, connect your Google account, and pick the same spreadsheet and tab in both.
+3. **Google Sheets:** open **Read existing rows** and **Add to sheet**, connect your Google account, and pick the same spreadsheet and tab in both. Then, in **Add to sheet**, set **Mapping Column Mode** to **Map Automatically**. (n8n resets this whenever you pick a spreadsheet, so set it after choosing the sheet.)
 4. **API key:** create a **Header Auth** credential named `ReplyNodes API` with header name `Authorization` and value `Bearer <your key>`. Select it in **Search page**.
 5. Open **Settings**, describe your target, and click **Execute workflow**.
 

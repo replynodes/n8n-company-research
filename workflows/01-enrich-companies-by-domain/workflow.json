@@ -480,7 +480,7 @@
     },
     {
       "parameters": {
-        "content": "## Enrich companies by domain\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `error`). Put one domain per row in `domain`.\n2. Connect your **Google Sheets** account in **Read domains** and **Write row**, and pick the sheet.\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in both **Search company** nodes.\n4. Click **Execute workflow**.\n\nOnly rows with an **empty status** are processed, so you can add rows and run again.",
+        "content": "## Enrich companies by domain\n\n**Run it in 4 steps**\n1. Create a Google Sheet with the header row from the README (`domain`, `status`, `source`, `name`, ... `error`). Put one domain per row in `domain`.\n2. Connect your **Google Sheets** account in **Read domains** and **Write row**, and pick the sheet. Then in **Write row** set *Mapping Column Mode* = **Map Automatically** and *Column to match on* = `row_number` (n8n clears these when you pick a sheet).\n3. Create a **Header Auth** credential named **ReplyNodes API**: header `Authorization`, value `Bearer <your key>`. Get a key (500 free credits) at https://replynodes.com/auth.md and select it in both **Search company** nodes.\n4. Click **Execute workflow**.\n\nOnly rows with an **empty status** are processed, so you can add rows and run again.",
         "height": 300,
         "width": 560,
         "color": 7

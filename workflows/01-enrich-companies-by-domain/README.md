@@ -20,7 +20,7 @@ A lookup that finds a company costs **1 credit**. Lookups that find nothing, and
    ```
 
 2. **Import** [`workflow.json`](workflow.json): Workflows, Import from File.
-3. **Google Sheets:** open **Read domains** and **Write row**, connect your Google account, and pick the same spreadsheet and tab in both.
+3. **Google Sheets:** open **Read domains** and **Write row**, connect your Google account, and pick the same spreadsheet and tab in both. Then, in **Write row**, set **Mapping Column Mode** to **Map Automatically** and **Column to match on** to `row_number`. (n8n clears these two settings whenever you pick a spreadsheet, so set them after choosing the sheet.)
 4. **API key:** create a **Header Auth** credential named `ReplyNodes API` with header name `Authorization` and value `Bearer <your key>`. Select it in both **Search company** nodes.
 5. Click **Execute workflow**.
 
