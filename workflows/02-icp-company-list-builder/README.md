@@ -49,13 +49,16 @@ Describe the companies you want (a keyword, countries, and a size range), run th
 
 The database is built from third-party datasets (`data_loaded_at` shows when it was last loaded). Spot-check a sample before you use a list for outreach.
 
-- Some records are old, and some fields are empty. Funding is present on roughly 6 in 10 records and a description on about 8 in 10.
+- Some records are old, and some fields are empty. In a 99-domain lookup test, 82 of 93 hits had a description and 78 had funding.
 - Keyword results can include loosely related companies. Review the `description` column.
 - Industry labels come from the source datasets and can look odd.
 
 ## Tested
 
-Run end to end on n8n 2.35.7: a 3-page run (no duplicates; a domain already in the sheet was skipped), a run capped by `maxPages`, a single-page keyword, an empty result, a missing keyword (clear error), and a run where page 2 fails twice (page 1 rows are kept and the reason is reported). The API responses used in that run were captured from the live service. The Google Sheets nodes use n8n's built-in node and were not run against a real spreadsheet in that test, so tell us if the sheet step misbehaves: [open an issue](../../issues).
+- **Edge cases with captured API responses (n8n 2.35.7):** a 3-page run (no duplicates; a domain already in the sheet was skipped), a run capped by `maxPages`, a single-page keyword, an empty result, a missing keyword (clear error), and a run where page 2 fails twice (page 1 rows are kept and the reason is reported).
+- **Real Google Sheet, live API:** keyword `carbon accounting software`, countries `US`, 11 to 200 employees, `maxPages` 1. It fetched 1 page, added 6 companies, stopped with `no more results` and used 1 credit.
+
+If the sheet step misbehaves for you, [open an issue](../../issues).
 
 ## Attribution
 
