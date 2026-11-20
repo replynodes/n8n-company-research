@@ -53,8 +53,8 @@ Failed lookups are never written as blank rows: they carry a status and an error
 The database is built from third-party datasets (`data_loaded_at` shows when it was last loaded). Check a sample before relying on it.
 
 - Coverage is not complete. In a test of 20 well-known domains on 2026-11-19, 16 returned the right company; `calendly.com`, `typeform.com` and `firecrawl.dev` were missing (the live-site fallback fills those in).
-- A few domains map to the wrong company. For example `gumroad.com` returns a record named AirPitch.
-- Some records are old, and some fields are empty. Funding is present on roughly 6 in 10 records and a description on about 8 in 10. Industry labels can look odd (`stripe.com` is labelled "facilities services").
+- A few domains map to the wrong company. For example `gumroad.com` returns a record named AirPitch, and `notion.so` returns a different company.
+- Some records are old, and some fields are empty. In a 99-domain test, 93 domains were found; of those, 82 had a description and 78 had funding (see Tested). Industry labels can look odd (`stripe.com` is labelled "facilities services").
 - It does one exact-domain lookup per row. It does not search by company name or by description.
 
 Need fresher data for one site? The [Markdown API](https://md.replynodes.com) fetches the live page.
@@ -71,7 +71,12 @@ Real rows from a test run (2026-11-19):
 
 ## Tested
 
-Run end to end on n8n 2.35.7 with 10 rows covering: found, partial data, live-site fallback, URL normalization, invalid domain, duplicate, a 429 that succeeds on retry, a 504 that fails after the retry, and a company that is not found anywhere. The API responses used in that run were captured from the live service. The Google Sheets nodes use n8n's built-in node and were not run against a real spreadsheet in that test, so tell us if the sheet step misbehaves: [open an issue](../../issues).
+Two kinds of tests on n8n 2.35.7:
+
+- **Edge cases with captured API responses:** 10 rows covering found, partial data, live-site fallback, URL normalization, invalid domain, duplicate, a 429 that succeeds on retry, a 504 that fails after the retry, and a company that is not found anywhere.
+- **Real Google Sheet, live API:** the workflow ran on n8n Cloud against a real spreadsheet. A 99-domain benchmark (97 well-known SaaS, developer-tool and climate-tech domains plus 2 made-up ones) gave 93 `found`, 4 `found_live_only`, 2 `not_found` and 0 `error`. Of the 93 found, all had an employee range, 82 had a description and 78 had funding. It used 93 credits and took about 5 minutes 45 seconds (about 3.5 seconds per row), with no retries. The list was hand-picked, so expect a lower hit rate on obscure domains. A wrong API key showed up in the `error` column as expected.
+
+If the sheet step misbehaves for you, [open an issue](../../issues).
 
 ## Attribution
 
